@@ -25,26 +25,46 @@ exports.signup = async (req, res) => {
     return res.status(501).json({ message: "internal server error", error });
   }
 };
+ 
 
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
-  if ((!email, !password)) {
-    return res.status(501).json({ message: "Fill all details" });
-  }
-  const existingUser = await UserModel.findOne({ email });
-  if (!existingUser) {
-    return res.status(409).json({ message: "User Dont Exists" });
-  }
-  const isPasswordValid = await bcrypt.compare(password, existingUser.password);
-  if (!isPasswordValid) {
-    return res.status(401).json({ message: "Invalid credentials" });
-  }
+  try {
+    const { email, password } = req.body;
 
-  const token = jwt.sign(
-    { id: existingUser._id, email: existingUser.email },
-    "your_jwt_secret",
-    { expiresIn: "1h" }
-  );
+    if (!email || !password) {
+      return res.status(400).json({ message: "Please fill all details" });
+    }
 
-  return res.status(200).json({ message: "Login successful", token });
+    const existingUser = await UserModel.findOne({ email });
+
+    if (!existingUser) {
+      return res.status(404).json({ message: "User does not exist" });
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      existingUser.password
+    );
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: "Invalid password" });
+    }
+
+    const token = jwt.sign(
+      { id: existingUser._id, email: existingUser.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    // 📌 Remove password before sending user data
+    const { password: _, ...userWithoutPassword } = existingUser.toObject();  
+
+    return res.status(200).json({
+      message: "Login successful",
+      token,
+      user: userWithoutPassword,  
+    });
+  } catch (error) {
+    console.error("Login Error 😢:", error);
+    return res.status(500).json({ message: "Internal server error", error });
+  }
 };
